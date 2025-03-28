@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "searcherator"
+version = "0.0.1"
+authors = [
+  { name="Arved Klöhn", email="arved.kloehn@gmail.com" },
+]
+description = "A Python package for performing cached web searches using the Brave Search API"
+readme = "README.md"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "cacherator",
+    "logorator",
+    "aiohttp",
+]
+
+[tool.setuptools]
+packages = [
+"searcherator"
+]
+
+[project.urls]
+"Homepage" = "https://github.com/Redundando/searcherator"
+"Bug Tracker" = "https://github.com/Redundando/searcherator/issues"
