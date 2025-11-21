@@ -24,7 +24,12 @@ class Searcherator(JSONCache):
                 self.api_key = os.getenv("BRAVE_API_KEY")
             except KeyError:
                 self.api_key = None
+
+        if self.api_key is None:
+            raise ValueError("api_key is required")
+
         self._search_results = None
+        self._detailed_search_results = None
         self._urls = None
         super().__init__(data_id=f"{search_term} ({language} {country} {num_results})", directory="data/search", clear_cache=clear_cache, ttl=ttl)
         self.search_term = search_term
@@ -64,6 +69,14 @@ class Searcherator(JSONCache):
         if self._search_results is None:
             self._search_results = await self.async_search()
         return self._search_results
+
+    async def detailed_search_result(self):
+        if self._detailed_search_results is None:
+            self._detailed_search_results = []
+            search_results = await self.search_result()
+            for result in search_results.get("web", {}).get("results", []):
+                self._detailed_search_results.append(result)
+        return self._detailed_search_results
 
     async def print(self):
         pprint(await self.search_result(), width=200, indent=2)
