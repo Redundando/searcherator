@@ -1,1 +1,1 @@
-from .searcherator import Searcherator
+from .searcherator import Searcherator, SearcheratorError, SearcheratorAPIError, SearcheratorAuthError, SearcheratorRateLimitError, SearcheratorTimeoutError

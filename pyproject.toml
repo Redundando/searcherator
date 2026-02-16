@@ -4,29 +4,40 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "searcherator"
-version = "0.0.2"
+version = "0.1.0"
 authors = [
   { name="Arved Klöhn", email="arved.kloehn@gmail.com" },
 ]
-description = "A Python package for performing cached web searches using the Brave Search API"
+description = "Async web search client using Brave Search API with built-in caching, rate limiting, and batch processing"
 readme = "README.md"
 requires-python = ">=3.8"
+keywords = ["search", "brave", "api", "async", "cache", "rate-limiting", "web-search"]
 classifiers = [
-    "Programming Language :: Python :: 3",
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Framework :: AsyncIO",
+    "Topic :: Internet :: WWW/HTTP :: Indexing/Search",
+    "Topic :: Software Development :: Libraries :: Python Modules",
 ]
 dependencies = [
-    "cacherator",
-    "logorator",
-    "aiohttp",
+    "cacherator>=0.1.0",
+    "logorator>=0.1.0",
+    "aiohttp>=3.8.0",
 ]
 
 [tool.setuptools]
-packages = [
-"searcherator"
-]
+packages = ["searcherator"]
 
 [project.urls]
 "Homepage" = "https://github.com/Redundando/searcherator"
+"Documentation" = "https://github.com/Redundando/searcherator#readme"
 "Bug Tracker" = "https://github.com/Redundando/searcherator/issues"
+"Source Code" = "https://github.com/Redundando/searcherator"
