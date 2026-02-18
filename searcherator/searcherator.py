@@ -263,7 +263,9 @@ class Searcherator(JSONCache):
                 self._parse_rate_limit_headers(response.headers)
                 
                 if response.status == 200:
-                    return await response.json()
+                    result = await response.json()
+                    self.json_cache_save()
+                    return result
                 else:
                     error_text = await response.text()
                     self._handle_response_status(response.status, error_text)

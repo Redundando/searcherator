@@ -1,0 +1,341 @@
+---
+Package: cacherator
+Version: 1.1.1
+Source: https://pypi.org/project/cacherator/
+Fetched: 2026-02-18 18:13:53
+---
+
+# Cacherator
+
+**Persistent JSON caching for Python with async support** - Cache function results and object state effortlessly.
+
+[![Python 3.7+](https://img.shields.io/badge/python-3.7+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+## Overview
+
+Cacherator is a Python library that provides persistent JSON-based caching for class state and function results. It enables developers to cache expensive operations with minimal configuration, supporting both synchronous and asynchronous functions.
+
+### Key Features
+
+- **Zero-configuration caching** - Simple inheritance and decorator pattern
+- **Async/await support** - Native support for asynchronous functions
+- **Persistent storage** - Cache survives program restarts
+- **TTL (Time-To-Live)** - Automatic cache expiration
+- **Selective caching** - Fine-grained control over what gets cached
+- **Cache management** - Built-in methods for inspection and clearing
+- **Flexible logging** - Global and per-instance control
+
+## Installation
+
+```bash
+pip install cacherator
+```
+
+## Quick Start
+
+### Basic Function Caching
+
+```python
+from cacherator import JSONCache, Cached
+import time
+
+class Calculator(JSONCache):
+    def __init__(self):
+        super().__init__(data_id="calc")
+    
+    @Cached()
+    def expensive_calculation(self, x, y):
+        time.sleep(2)  # Simulate expensive operation
+        return x ** y
+
+calc = Calculator()
+result = calc.expensive_calculation(2, 10)  # Takes 2 seconds
+result = calc.expensive_calculation(2, 10)  # Instant!
+```
+
+### Async Function Caching
+
+```python
+class APIClient(JSONCache):
+    @Cached(ttl=1)  # Cache for 1 day
+    async def fetch_user(self, user_id):
+        # Expensive API call
+        response = await api.get(f"/users/{user_id}")
+        return response.json()
+
+client = APIClient()
+user = await client.fetch_user(123)  # API call
+user = await client.fetch_user(123)  # Cached!
+```
+
+### State Persistence
+
+```python
+class GameState(JSONCache):
+    def __init__(self, game_id):
+        super().__init__(data_id=f"game_{game_id}")
+        if not hasattr(self, "score"):
+            self.score = 0
+            self.level = 1
+    
+    def add_points(self, points):
+        self.score += points
+        self.json_cache_save()
+
+# Session 1
+game = GameState("player1")
+game.add_points(100)
+
+# Session 2 (after restart)
+game = GameState("player1")
+print(game.score)  # 100 - persisted!
+```
+
+## Advanced Usage
+
+### Custom TTL Configuration
+
+```python
+class WeatherService(JSONCache):
+    @Cached(ttl=0.25)  # 6 hours (0.25 days)
+    def get_forecast(self, city):
+        return fetch_weather(city)
+    
+    @Cached(ttl=30)  # 30 days
+    def get_historical(self, city, year):
+        return fetch_historical(city, year)
+```
+
+### Excluding Variables from Cache
+
+```python
+class DataProcessor(JSONCache):
+    def __init__(self):
+        self._excluded_cache_vars = ["temp_data", "api_key"]
+        super().__init__()
+        self.results = {}
+        self.temp_data = []  # Won't be cached
+        self.api_key = "secret"  # Won't be cached
+```
+
+### Cache Management
+
+```python
+processor = DataProcessor()
+
+# Get cache statistics
+stats = processor.json_cache_stats()
+print(stats)
+# {'total_entries': 5, 'functions': {'process': 3, 'analyze': 2}}
+
+# Clear specific function cache
+processor.json_cache_clear("process")
+
+# Clear all cache
+processor.json_cache_clear()
+```
+
+### Logging Control
+
+```python
+# Three logging levels available
+from cacherator import JSONCache, LogLevel
+
+# SILENT: No logging
+JSONCache.set_logging(LogLevel.SILENT)
+
+# NORMAL: Errors only (default)
+JSONCache.set_logging(LogLevel.NORMAL)
+
+# VERBOSE: All operations including save/load
+JSONCache.set_logging(LogLevel.VERBOSE)
+
+# Backward compatible boolean API
+JSONCache.set_logging(False)  # SILENT
+JSONCache.set_logging(True)   # NORMAL
+
+# Per-instance control
+processor = DataProcessor(logging=LogLevel.SILENT)
+```
+
+## Configuration
+
+### JSONCache Constructor
+
+```python
+JSONCache(
+    data_id="unique_id",      # Unique identifier (default: class name)
+    directory="cache",         # Cache directory (default: "data/cache")
+    clear_cache=False,         # Clear existing cache on init
+    ttl=999,                   # Default TTL in days
+    logging=True               # Enable logging (True/False or LogLevel)
+)
+```
+
+### @Cached Decorator
+
+```python
+@Cached(
+    ttl=7,                     # Time-to-live in days (default: class ttl)
+    clear_cache=False          # Clear cache for this function
+)
+```
+
+## Use Cases
+
+### API Client with Caching
+
+```python
+class GitHubClient(JSONCache):
+    def __init__(self):
+        super().__init__(data_id="github_client", ttl=1)
+    
+    @Cached(ttl=0.5)  # 12 hours
+    async def get_user(self, username):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.github.com/users/{username}") as resp:
+                return await resp.json()
+    
+    @Cached(ttl=7)  # 1 week
+    async def get_repos(self, username):
+        async with aiohttp.ClientSession() as session:
+            async with session.get(f"https://api.github.com/users/{username}/repos") as resp:
+                return await resp.json()
+```
+
+### Database Query Caching
+
+```python
+class UserRepository(JSONCache):
+    def __init__(self):
+        super().__init__(data_id="user_repo", ttl=0.1)  # 2.4 hours
+    
+    @Cached()
+    def get_user_by_id(self, user_id):
+        return db.query("SELECT * FROM users WHERE id = ?", user_id)
+    
+    @Cached(ttl=1)
+    def get_user_stats(self, user_id):
+        return db.query("SELECT COUNT(*) FROM posts WHERE user_id = ?", user_id)
+```
+
+### Machine Learning Model Predictions
+
+```python
+class ModelPredictor(JSONCache):
+    def __init__(self):
+        super().__init__(data_id="ml_predictor")
+        self.model = load_model()
+    
+    @Cached(ttl=30)
+    def predict(self, features_hash, features):
+        # Cache predictions by feature hash
+        return self.model.predict(features)
+```
+
+## Best Practices
+
+### Recommended Use Cases
+
+- Expensive API calls and network requests
+- Database queries with relatively static data
+- Heavy computational operations
+- Machine learning model predictions
+- Data transformations and aggregations
+
+### When to Use TTL
+
+- Set short TTL (minutes to hours) for frequently changing data
+- Set long TTL (days to weeks) for stable reference data
+- Consider data freshness requirements for your application
+
+### What Not to Cache
+
+- Non-deterministic functions (random number generation, timestamps)
+- Very fast operations (overhead exceeds benefit)
+- Non-JSON-serializable objects without custom handling
+- Real-time data without appropriate TTL configuration
+
+## Performance
+
+Cacherator introduces minimal overhead:
+
+- **Cache hit**: ~0.1ms
+- **Cache miss**: Function execution time + ~1ms
+- **Disk I/O**: Non-blocking, asynchronous operations
+
+### Performance Improvements
+
+- API calls (100ms - 5s) reduced to ~0.1ms
+- Database queries (10ms - 1s) reduced to ~0.1ms
+- Heavy computations (1s+) reduced to ~0.1ms
+
+## Compatibility
+
+- **Python**: 3.7 and above
+- **Async**: Full support for async/await syntax
+- **Operating Systems**: Windows, macOS, Linux
+- **Data Types**: All JSON-serializable types plus datetime objects
+
+## Changelog
+
+### Version 1.1.1
+
+- **Fixed**: Critical race condition bug in `@Cached()` decorator for concurrent async operations
+- **Added**: Three-level logging system (SILENT, NORMAL, VERBOSE)
+- **Added**: `LogLevel` enum for granular logging control
+- **Improved**: Code refactoring for better maintainability
+- **Added**: Comprehensive test suite with 39 tests including race condition tests
+
+## Troubleshooting
+
+### Cache Not Persisting
+
+```python
+# Explicitly save cache
+obj.json_cache_save()
+
+# Check for serialization errors
+obj._excluded_cache_vars = ["problematic_attr"]
+```
+
+### Cache Not Being Used
+
+```python
+# Verify TTL hasn't expired
+obj = MyClass(ttl=30)  # Increase TTL
+
+# Ensure arguments are identical (type matters)
+obj.func(1, 2)    # Different from
+obj.func(1.0, 2)  # (int vs float)
+```
+
+### Large Cache Files
+
+```python
+# Exclude large attributes
+self._excluded_cache_vars = ["large_data"]
+
+# Use separate cache instances
+processor1 = DataProcessor(data_id="dataset1")
+processor2 = DataProcessor(data_id="dataset2")
+```
+
+## Contributing
+
+Contributions are welcome. Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+## License
+
+MIT License - see [LICENSE](LICENSE) file for details.
+
+## Resources
+
+- **GitHub Repository**: https://github.com/Redundando/cacherator
+- **Issue Tracker**: https://github.com/Redundando/cacherator/issues
+- **PyPI Package**: https://pypi.org/project/cacherator/
+
+---
+
+Developed by [Arved Klöhn](https://github.com/Redundando)

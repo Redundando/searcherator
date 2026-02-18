@@ -278,6 +278,22 @@ search = Searcherator("Python", clear_cache=True, ttl=0)
        # Alert or throttle
    ```
 
+## Testing
+
+Run the test suite:
+
+```bash
+# Install test dependencies
+pip install pytest pytest-asyncio
+
+# Run all tests
+pytest test_searcherator.py -v
+
+# Run with coverage
+pip install pytest-cov
+pytest test_searcherator.py --cov=searcherator --cov-report=html
+```
+
 ## License
 
 MIT License
