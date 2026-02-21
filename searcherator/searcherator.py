@@ -94,7 +94,8 @@ class Searcherator(JSONCache):
             timeout: int = 30,
             clear_cache: bool = False,
             ttl: int = 7,
-            logging: bool = False):
+            logging: bool = False,
+            dynamodb_table: str | None = None):
         """Initialize a Searcherator instance.
         
         Args:
@@ -108,6 +109,7 @@ class Searcherator(JSONCache):
             clear_cache: Clear existing cached results (default: False).
             ttl: Time-to-live for cached results in days (default: 7).
             logging: Enable cache operation logging (default: False).
+            dynamodb_table: DynamoDB table name for cross-machine cache sharing (default: None).
         
         Raises:
             SearcheratorAuthError: If no API key is provided or found in environment.
@@ -137,7 +139,7 @@ class Searcherator(JSONCache):
         self.rate_remaining_per_month: int | None = None
         self.rate_reset_per_second: int | None = None
         self.rate_reset_per_month: int | None = None
-        super().__init__(data_id=f"{search_term} ({language} {country} {num_results})", directory="data/search", clear_cache=clear_cache, ttl=ttl, logging=logging)
+        super().__init__(data_id=f"{search_term} ({language} {country} {num_results})", directory="data/search", clear_cache=clear_cache, ttl=ttl, logging=logging, dynamodb_table=dynamodb_table)
 
     def __str__(self):
         return f"Search: {self.search_term}"
