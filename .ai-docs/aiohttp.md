@@ -2,7 +2,7 @@
 Package: aiohttp
 Version: 3.13.3
 Source: https://pypi.org/project/aiohttp/
-Fetched: 2026-02-18 18:13:54
+Fetched: 2026-02-21 18:29:52
 ---
 
 ==================================

@@ -1,8 +1,8 @@
 ---
 Package: cacherator
-Version: 1.1.1
+Version: 1.2.5
 Source: https://pypi.org/project/cacherator/
-Fetched: 2026-02-18 18:13:53
+Fetched: 2026-02-21 18:29:52
 ---
 
 # Cacherator
@@ -25,11 +25,20 @@ Cacherator is a Python library that provides persistent JSON-based caching for c
 - **Selective caching** - Fine-grained control over what gets cached
 - **Cache management** - Built-in methods for inspection and clearing
 - **Flexible logging** - Global and per-instance control
+- **DynamoDB backend** - Optional L2 cache for cross-machine sharing
 
 ## Installation
 
 ```bash
 pip install cacherator
+```
+
+### Optional: DynamoDB Support
+
+For cross-machine cache sharing via DynamoDB:
+
+```bash
+pip install boto3
 ```
 
 ## Quick Start
@@ -94,6 +103,50 @@ print(game.score)  # 100 - persisted!
 
 ## Advanced Usage
 
+### DynamoDB Backend (Cross-Machine Cache Sharing)
+
+Enable optional DynamoDB L2 cache for sharing cache across multiple machines:
+
+```python
+from cacherator import JSONCache, Cached
+
+class WebScraper(JSONCache):
+    def __init__(self):
+        super().__init__(dynamodb_table='my-cache-table')
+    
+    @Cached(ttl=7)
+    def scrape_expensive_data(self, url):
+        # Expensive operation
+        return fetch_data(url)
+
+# On machine 1 (laptop)
+scraper = WebScraper()
+data = scraper.scrape_expensive_data("https://example.com")  # Scrapes and caches
+
+# On machine 2 (EC2 instance) - same code
+scraper = WebScraper()
+data = scraper.scrape_expensive_data("https://example.com")  # Uses cached data!
+```
+
+**How it works:**
+- **L1 (local JSON)**: Checked first for instant access
+- **L2 (DynamoDB)**: Checked on L1 miss, then written to L1
+- **Writes**: Saved to both L1 and L2 simultaneously
+- **No table specified**: Works as local-only cache
+- **Compression**: Payloads over 100KB are automatically gzip-compressed before writing to DynamoDB, reducing typical HTML payloads by 80-90%. A warning is logged if the compressed payload still exceeds DynamoDB's 400KB item limit.
+- **save_on_del**: By default, `__del__` only saves to local JSON (L1). Set `save_on_del=True` to also write to DynamoDB on object destruction. Use `json_cache_save()` for explicit L1+L2 saves.
+
+**DynamoDB table:**
+- Auto-created if missing (requires IAM permissions)
+- Partition key: `cache_id` (String)
+- TTL enabled for automatic expiry
+- Pay-per-request billing mode
+
+**AWS credentials** via standard boto3 chain:
+- Environment variables: `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`
+- IAM role (recommended for EC2/Lambda)
+- AWS credentials file (`~/.aws/credentials`)
+
 ### Custom TTL Configuration
 
 ```python
@@ -139,24 +192,24 @@ processor.json_cache_clear()
 ### Logging Control
 
 ```python
-# Three logging levels available
-from cacherator import JSONCache, LogLevel
+from cacherator import JSONCache
 
-# SILENT: No logging
-JSONCache.set_logging(LogLevel.SILENT)
+# Disable logging globally
+JSONCache.set_logging(False)
 
-# NORMAL: Errors only (default)
-JSONCache.set_logging(LogLevel.NORMAL)
-
-# VERBOSE: All operations including save/load
-JSONCache.set_logging(LogLevel.VERBOSE)
-
-# Backward compatible boolean API
-JSONCache.set_logging(False)  # SILENT
-JSONCache.set_logging(True)   # NORMAL
+# Enable logging globally (default)
+JSONCache.set_logging(True)
 
 # Per-instance control
-processor = DataProcessor(logging=LogLevel.SILENT)
+processor = DataProcessor(logging=False)  # Silent mode
+```
+
+**When logging is enabled:**
+- DynamoDB operations are logged (table creation, reads, writes)
+- Local JSON operations are silent (fast, not interesting)
+
+**When logging is disabled:**
+- All operations are silent
 ```
 
 ## Configuration
@@ -169,7 +222,9 @@ JSONCache(
     directory="cache",         # Cache directory (default: "data/cache")
     clear_cache=False,         # Clear existing cache on init
     ttl=999,                   # Default TTL in days
-    logging=True               # Enable logging (True/False or LogLevel)
+    logging=True,              # Enable logging (True/False)
+    dynamodb_table=None,       # DynamoDB table name (optional)
+    save_on_del=False          # Write to DynamoDB on __del__ (default: False)
 )
 ```
 
@@ -277,16 +332,37 @@ Cacherator introduces minimal overhead:
 - **Async**: Full support for async/await syntax
 - **Operating Systems**: Windows, macOS, Linux
 - **Data Types**: All JSON-serializable types plus datetime objects
+- **Optional Dependencies**: boto3 (for DynamoDB backend), dynamorator
 
 ## Changelog
 
-### Version 1.1.1
+### Version 1.2.4
 
-- **Fixed**: Critical race condition bug in `@Cached()` decorator for concurrent async operations
-- **Added**: Three-level logging system (SILENT, NORMAL, VERBOSE)
-- **Added**: `LogLevel` enum for granular logging control
-- **Improved**: Code refactoring for better maintainability
-- **Added**: Comprehensive test suite with 39 tests including race condition tests
+- **Added**: `save_on_del` parameter (default `False`) — `__del__` no longer writes to DynamoDB unless opted in, eliminating unnecessary writes on program exit
+- **Changed**: `__del__` always saves to local JSON (L1); DynamoDB (L2) write requires explicit `json_cache_save()` or `save_on_del=True`
+- **Removed**: Unreliable dirty-check on `json_cache_save()` — saves are now always performed when called
+
+### Version 1.2.3
+
+- **Added**: Automatic gzip compression for DynamoDB payloads exceeding 100KB
+- **Added**: Warning logged when compressed payload still exceeds DynamoDB's 400KB limit
+- **Added**: Compression is transparent — no API changes required
+
+### Version 1.2.2
+
+- **Fixed**: `json_cache_save()` now automatically syncs to DynamoDB (L2) when enabled
+- **Deprecated**: `json_cache_save_db()` is now redundant (use `json_cache_save()` instead)
+
+### Version 1.2.0
+
+- **Added**: Optional DynamoDB backend for cross-machine cache sharing via dynamorator
+- **Added**: Two-layer cache architecture (L1: local JSON, L2: DynamoDB)
+- **Added**: Constructor parameter `dynamodb_table` for enabling DynamoDB
+- **Added**: Automatic DynamoDB table creation with TTL support
+- **Changed**: DynamoDB backend now uses dynamorator package
+- **Changed**: Simplified logging to boolean (True/False)
+- **Removed**: Environment variable configuration (use constructor parameter)
+- **Removed**: LogLevel enum (simplified to boolean)
 
 ## Troubleshooting
 

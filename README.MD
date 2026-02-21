@@ -6,6 +6,7 @@ Searcherator is a Python package that provides a convenient way to perform web s
 
 - Async/await support for modern Python applications
 - Automatic caching with configurable TTL
+- Optional DynamoDB backend for cross-machine cache sharing
 - Built-in rate limiting to respect API quotas
 - Efficient batch processing for multiple concurrent searches
 - Support for multiple languages and countries
@@ -162,7 +163,8 @@ Searcherator(
     timeout: int = 30,
     clear_cache: bool = False,
     ttl: int = 7,
-    logging: bool = False
+    logging: bool = False,
+    dynamodb_table: str | None = None
 )
 ```
 
@@ -178,6 +180,7 @@ Searcherator(
 - **clear_cache** (bool): Clear existing cached results (default: False)
 - **ttl** (int): Time-to-live for cached results in days (default: 7)
 - **logging** (bool): Enable cache operation logging (default: False)
+- **dynamodb_table** (str): DynamoDB table name for cross-machine cache sharing (default: None)
 
 #### Methods
 
@@ -242,6 +245,28 @@ Results are automatically cached to disk:
 - **Format**: JSON files
 - **TTL**: Configurable (default: 7 days)
 - **Cache key**: Based on search term, language, country, and num_results
+
+### DynamoDB Backend (Optional)
+
+Enable cross-machine cache sharing via DynamoDB:
+
+```python
+search = Searcherator(
+    "Python tutorials",
+    dynamodb_table="my-search-cache"
+)
+results = await search.search_result()
+```
+
+**How it works:**
+- **L1 (local JSON)**: Checked first for instant access
+- **L2 (DynamoDB)**: Checked on L1 miss, synced across machines
+- **No table specified**: Works as local-only cache
+
+**Requirements:**
+- Install boto3: `pip install boto3`
+- AWS credentials configured (environment variables, IAM role, or ~/.aws/credentials)
+- DynamoDB table auto-created if missing (requires IAM permissions)
 
 To disable caching for a specific search:
 
