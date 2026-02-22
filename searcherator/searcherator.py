@@ -1,6 +1,9 @@
 import asyncio
+import inspect
 import os
+import time
 from pprint import pprint
+from typing import Callable
 
 import aiohttp
 from cacherator import Cached, JSONCache
@@ -95,7 +98,8 @@ class Searcherator(JSONCache):
             clear_cache: bool = False,
             ttl: int = 7,
             logging: bool = False,
-            dynamodb_table: str | None = None):
+            dynamodb_table: str | None = None,
+            on_progress: Callable | None = None):
         """Initialize a Searcherator instance.
         
         Args:
@@ -110,6 +114,7 @@ class Searcherator(JSONCache):
             ttl: Time-to-live for cached results in days (default: 7).
             logging: Enable cache operation logging (default: False).
             dynamodb_table: DynamoDB table name for cross-machine cache sharing (default: None).
+            on_progress: Callback for progress events. Accepts both sync and async callables (default: None).
         
         Raises:
             SearcheratorAuthError: If no API key is provided or found in environment.
@@ -139,6 +144,7 @@ class Searcherator(JSONCache):
         self.rate_remaining_per_month: int | None = None
         self.rate_reset_per_second: int | None = None
         self.rate_reset_per_month: int | None = None
+        self.on_progress = on_progress
         super().__init__(data_id=f"{search_term} ({language} {country} {num_results})", directory="data/search", clear_cache=clear_cache, ttl=ttl, logging=logging, dynamodb_table=dynamodb_table)
 
     def __str__(self):
@@ -182,8 +188,14 @@ class Searcherator(JSONCache):
                 cls._rate_limiter = asyncio.Semaphore(limit)
             return cls._rate_limiter
 
-    @Cached()
-    @Logger()
+    async def _fire_progress(self, event: dict) -> None:
+        """Fire progress callback, handling both sync and async callables."""
+        if self.on_progress:
+            if inspect.iscoroutinefunction(self.on_progress):
+                await self.on_progress(event)
+            else:
+                self.on_progress(event)
+
     async def search_result(self) -> dict:
         """Perform the search and return full results as a dictionary.
         
@@ -205,6 +217,23 @@ class Searcherator(JSONCache):
             >>> results = await search.search_result()
             >>> print(results['web']['results'][0]['title'])
         """
+        await self._fire_progress({"event": "search_started", "query": self.search_term, "ts": time.time()})
+        
+        try:
+            result = await self._search_result_impl()
+            cache_source = self.last_cache_status  # "l1", "l2", or "miss"
+            cached = cache_source in ("l1", "l2")
+            num_results = len(result.get("web", {}).get("results", []))
+            await self._fire_progress({"event": "search_done", "query": self.search_term, "num_results": num_results, "cached": cached, "cache_source": cache_source, "ts": time.time()})
+            return result
+        except Exception as e:
+            await self._fire_progress({"event": "error", "query": self.search_term, "message": str(e), "ts": time.time()})
+            raise
+
+    @Cached()
+    @Logger()
+    async def _search_result_impl(self) -> dict:
+        """Internal implementation of search_result with caching."""
         rate_limiter = await self._get_rate_limiter()
         async with rate_limiter:
             # Ensure minimum time between request starts (not completions)

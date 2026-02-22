@@ -2,7 +2,7 @@
 Package: logorator
 Version: 2.0.3
 Source: https://pypi.org/project/logorator/
-Fetched: 2026-02-21 18:29:52
+Fetched: 2026-02-22 14:15:53
 ---
 
 # Logorator

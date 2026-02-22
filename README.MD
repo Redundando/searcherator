@@ -9,6 +9,7 @@ Searcherator is a Python package that provides a convenient way to perform web s
 - Optional DynamoDB backend for cross-machine cache sharing
 - Built-in rate limiting to respect API quotas
 - Efficient batch processing for multiple concurrent searches
+- Progress callbacks for real-time search events
 - Support for multiple languages and countries
 - Comprehensive exception hierarchy for robust error handling
 - Real-time rate limit tracking and monitoring
@@ -148,6 +149,52 @@ print(f"Rate limit (per month): {search.rate_limit_per_month}")
 print(f"Remaining (per month): {search.rate_remaining_per_month}")
 ```
 
+### Progress Callbacks
+
+Track search progress with real-time event callbacks. Supports both sync and async callables:
+
+```python
+import asyncio
+from searcherator import Searcherator
+
+async def main():
+    # Sync callback
+    search = Searcherator(
+        "Python programming",
+        on_progress=lambda e: print(f"{e['event']}: {e.get('cached', 'N/A')}")
+    )
+    await search.search_result()
+    
+    # Async callback
+    async def on_progress(event):
+        await log_to_database(event)
+    
+    search = Searcherator(
+        "Python tutorials",
+        on_progress=on_progress
+    )
+    await search.search_result()
+    
+    await Searcherator.close_session()
+
+asyncio.run(main())
+```
+
+**Event structure:**
+
+All events include `event` (str) and `ts` (float, Unix timestamp).
+
+| Event | Additional Fields | Description |
+|-------|------------------|-------------|
+| `search_started` | `query` | Fired before search begins |
+| `search_done` | `query`, `num_results`, `cached`, `cache_source` | Fired after search completes |
+| `error` | `query`, `message` | Fired on exception |
+
+**Cache source values:**
+- `"miss"` — API call was made
+- `"l1"` — Returned from local JSON cache
+- `"l2"` — Returned from DynamoDB cache
+
 ## API Reference
 
 ### Searcherator
@@ -164,7 +211,8 @@ Searcherator(
     clear_cache: bool = False,
     ttl: int = 7,
     logging: bool = False,
-    dynamodb_table: str | None = None
+    dynamodb_table: str | None = None,
+    on_progress: Callable | None = None
 )
 ```
 
@@ -181,6 +229,7 @@ Searcherator(
 - **ttl** (int): Time-to-live for cached results in days (default: 7)
 - **logging** (bool): Enable cache operation logging (default: False)
 - **dynamodb_table** (str): DynamoDB table name for cross-machine cache sharing (default: None)
+- **on_progress** (Callable): Callback for progress events. Accepts both sync and async callables (default: None)
 
 #### Methods
 

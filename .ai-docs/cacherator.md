@@ -1,8 +1,8 @@
 ---
 Package: cacherator
-Version: 1.2.5
+Version: 1.2.8
 Source: https://pypi.org/project/cacherator/
-Fetched: 2026-02-21 18:29:52
+Fetched: 2026-02-22 14:15:53
 ---
 
 # Cacherator
@@ -24,6 +24,7 @@ Cacherator is a Python library that provides persistent JSON-based caching for c
 - **TTL (Time-To-Live)** - Automatic cache expiration
 - **Selective caching** - Fine-grained control over what gets cached
 - **Cache management** - Built-in methods for inspection and clearing
+- **Cache status tracking** - Per-call hit/miss detection with L1/L2 source
 - **Flexible logging** - Global and per-instance control
 - **DynamoDB backend** - Optional L2 cache for cross-machine sharing
 
@@ -130,7 +131,7 @@ data = scraper.scrape_expensive_data("https://example.com")  # Uses cached data!
 
 **How it works:**
 - **L1 (local JSON)**: Checked first for instant access
-- **L2 (DynamoDB)**: Checked on L1 miss, then written to L1
+- **L2 (DynamoDB)**: Checked on L1 miss, then written to L1; L1 hits are automatically backfilled to L2
 - **Writes**: Saved to both L1 and L2 simultaneously
 - **No table specified**: Works as local-only cache
 - **Compression**: Payloads over 100KB are automatically gzip-compressed before writing to DynamoDB, reducing typical HTML payloads by 80-90%. A warning is logged if the compressed payload still exceeds DynamoDB's 400KB item limit.
@@ -188,6 +189,40 @@ processor.json_cache_clear("process")
 # Clear all cache
 processor.json_cache_clear()
 ```
+
+### Cache Status Tracking
+
+Detect whether a `@Cached` method returned cached data or executed the function, and which cache layer (L1/L2) was used:
+
+```python
+class DataService(JSONCache):
+    def __init__(self):
+        super().__init__(data_id="my-service", ttl=7)
+
+    @Cached(ttl=7)
+    def fetch(self, key: str) -> str:
+        return expensive_operation(key)
+
+svc = DataService()
+
+# last_cache_status is None before any call
+print(svc.last_cache_status)  # None
+
+svc.fetch("foo")
+print(svc.last_cache_status)  # "miss" (first run) or "l1" / "l2" (subsequent runs)
+
+# Full per-call history keyed by function signature
+print(svc.cache_status)
+# {"fetch('foo',){}": "l1"}
+```
+
+**Status values:**
+- `"l1"` — returned from local JSON cache
+- `"l2"` — returned from DynamoDB cache
+- `"miss"` — function was executed (no valid cache entry)
+- `None` — no `@Cached` method has been called yet
+
+`cache_status` is populated on init for all keys loaded from cache, and updated on every `@Cached` call. It is cleared when `json_cache_clear()` is called.
 
 ### Logging Control
 
@@ -335,6 +370,17 @@ Cacherator introduces minimal overhead:
 - **Optional Dependencies**: boto3 (for DynamoDB backend), dynamorator
 
 ## Changelog
+
+### Version 1.2.6
+
+- **Added**: `cache_status` dict — per-function-signature hit/miss tracking with L1/L2 source, populated on init and updated on every `@Cached` call
+- **Added**: `last_cache_status` — status of the most recent `@Cached` call (`"l1"`, `"l2"`, `"miss"`, or `None`)
+- **Changed**: `json_cache_clear()` now also clears `cache_status` entries
+
+### Version 1.2.5
+
+- **Fixed**: L1 cache hits now automatically backfill L2 (DynamoDB) when enabled
+- **Fixed**: Removed misleading `json_cache_save_db` branch in `@Cached` decorator — `json_cache_save()` is always used, which handles both L1 and L2
 
 ### Version 1.2.4
 

@@ -1,3 +1,4 @@
 cacherator
 logorator
 aiohttp
+ghostscraper
